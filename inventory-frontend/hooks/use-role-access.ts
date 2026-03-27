@@ -11,6 +11,7 @@ export interface RolePermissions {
   canViewInventory: boolean
   canViewTransactions: boolean
   canCreateTransactions: boolean
+  canDeleteTransactions: boolean
   canViewSettings: boolean
   canManageUsers: boolean
   canExportData: boolean
@@ -28,6 +29,7 @@ const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canViewInventory: true,
     canViewTransactions: true,
     canCreateTransactions: true,
+    canDeleteTransactions: true,
     canViewSettings: true,
     canManageUsers: true,
     canExportData: true,
@@ -42,7 +44,8 @@ const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canDeleteProducts: false,
     canViewInventory: true,
     canViewTransactions: true,
-    canCreateTransactions: true,
+    canCreateTransactions: false,
+    canDeleteTransactions: false,
     canViewSettings: false,
     canManageUsers: false,
     canExportData: false,

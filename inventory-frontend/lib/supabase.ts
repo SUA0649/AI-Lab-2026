@@ -8,14 +8,15 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "demo-key"
 export const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? createClient(supabaseUrl, supabaseAnonKey)
   : {
-      auth: {
-        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-        signInWithPassword: () => Promise.resolve({ error: new Error("Demo mode - Supabase not configured") }),
-        signUp: () => Promise.resolve({ error: new Error("Demo mode - Supabase not configured") }),
-        signOut: () => Promise.resolve({ error: null }),
-      },
-    }
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+      signInWithPassword: () => Promise.resolve({ error: new Error("Demo mode - Supabase not configured") }),
+      signUp: () => Promise.resolve({ error: new Error("Demo mode - Supabase not configured") }),
+      resetPasswordForEmail: () => Promise.resolve({ error: new Error("Demo mode - Supabase not configured") }),
+      signOut: () => Promise.resolve({ error: null }),
+    },
+  }
 
 export type UserRole = "admin" | "staff"
 

@@ -1,0 +1,128 @@
+### Test POST API Endpoints for Products and Transactions
+### Base URL: localhost:5000
+### These tests insert dummy data and test the endpoints
+
+### ============================================
+### TEST 1: Create Product
+### ============================================
+### Endpoint: POST /api/Products
+### Required fields: name, description, sku, selling_price, cost_price, threshold, category, quantity, Status
+
+POST http://localhost:5000/api/Products
+Content-Type: application/json
+
+{
+  "name": "Laptop Dell XPS 13",
+  "description": "High-performance ultrabook laptop",
+  "sku": "LAPTOP-DELL-001",
+  "selling_price": 1200,
+  "cost_price": 800,
+  "threshold": 5,
+  "category": "Electronics",
+  "quantity": 15,
+  "Status": "active"
+}
+
+### ============================================
+### TEST 2: Create Transaction
+### ============================================
+### Endpoint: POST /api/Transactions
+### Note: item_name and quantity are arrays
+### The product name MUST match exactly with a product that exists in the Products table
+### type can be: "Buy", "Sell", or "purchase"
+
+POST http://localhost:5000/api/Transactions
+Content-Type: application/json
+
+{
+  "item_name": ["Laptop Dell XPS 13"],
+  "type": "Buy",
+  "quantity": [5],
+  "remarks": "Initial purchase from supplier",
+  "name": "Laptop Dell XPS 13",
+  "Status": "Completed"
+}
+
+### ============================================
+### TEST 3: Get All Products (Verify product was created)
+### ============================================
+
+GET http://localhost:5000/api/Products
+
+### ============================================
+### TEST 4: Get All Transactions (Verify transaction was created)
+### ============================================
+
+GET http://localhost:5000/api/Transactions
+
+### ============================================
+### TEST 5: Create Multiple Products (Batch Test)
+### ============================================
+
+POST http://localhost:5000/api/Products
+Content-Type: application/json
+
+{
+  "name": "Office Chair Pro",
+  "description": "Ergonomic office chair with lumbar support",
+  "sku": "CHAIR-ERGONOMIC-001",
+  "selling_price": 350,
+  "cost_price": 180,
+  "threshold": 3,
+  "category": "Furniture",
+  "quantity": 20,
+  "Status": "active"
+}
+
+###
+
+POST http://localhost:5000/api/Products
+Content-Type: application/json
+
+{
+  "name": "Wireless Mouse",
+  "description": "Bluetooth wireless mouse with 2.4GHz receiver",
+  "sku": "MOUSE-WIRELESS-001",
+  "selling_price": 45,
+  "cost_price": 20,
+  "threshold": 10,
+  "category": "Accessories",
+  "quantity": 50,
+  "Status": "active"
+}
+
+### ============================================
+### TEST 6: Create Transaction with Multiple Items
+### ============================================
+
+POST http://localhost:5000/api/Transactions
+Content-Type: application/json
+
+{
+  "item_name": ["Office Chair Pro", "Wireless Mouse"],
+  "type": "Sell",
+  "quantity": [2, 10],
+  "remarks": "Bulk sale to customer ABC",
+  "name": "Customer ABC Order",
+  "Status": "Pending"
+}
+
+### ============================================
+### NOTES
+### ============================================
+### 1. The server must be running on http://localhost:5000
+### 2. Ensure .env file has SUPABASE_URL and SERVICE_ROLE_KEY set
+### 3. Product names in Transactions must exist in Products table (case-sensitive)
+### 4. Transactions will fail if product doesn't exist
+### 5. item_name and quantity must be arrays of same length
+### 6. Expected responses:
+###    - Success: HTTP 200 with data object
+###    - Missing fields: HTTP 400 with error message
+###    - Product not found: HTTP 404 with error message
+###    - Server error: HTTP 500 with error message
+### 
+### FIELD REFERENCE
+### ============================================
+### Products Status: "active" or "inactive"
+### Transactions Status: "Pending", "Completed", or "Cancelled"
+### ============================================

@@ -251,19 +251,6 @@ export default function InventoryPage() {
                 {filteredProducts.map((product) => {
                   const stockStatus = getStockStatus(product);
                   const StatusIcon = stockStatus.icon;
-                  const handleStatusChange = async (
-                    e: React.ChangeEvent<HTMLSelectElement>
-                  ) => {
-                    const newStatus = e.target.value as "active" | "inactive";
-                    try {
-                      await api.updateProduct(product.item_id, {
-                        Status: newStatus,
-                      });
-                      fetchProducts(); // Refresh products after update
-                    } catch (err) {
-                      alert("Failed to update status");
-                    }
-                  };
                   return (
                     <Card
                       key={product.name}
@@ -286,22 +273,18 @@ export default function InventoryPage() {
                           </Badge>
                         </div>
                         <CardDescription>{product.description}</CardDescription>
-                        <div className="mt-2">
-                          <label className="text-xs text-gray-500 mr-2">
-                            Status:
-                          </label>
-                          <select
-                            value={product.Status}
-                            onChange={handleStatusChange}
-                            className="border rounded px-2 py-1 text-xs"
-                          >
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                          </select>
-                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Status:</span>
+                            <Badge
+                              variant={(product.Status || product.status) === "active" ? "default" : "secondary"}
+                              className="capitalize"
+                            >
+                              {product.Status || product.status || "N/A"}
+                            </Badge>
+                          </div>
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">SKU:</span>
                             <span className="text-sm font-medium">

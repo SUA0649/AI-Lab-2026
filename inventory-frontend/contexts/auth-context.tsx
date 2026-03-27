@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (isDemoMode) {
-      // ...existing code...
+      throw new Error("Supabase is not configured. Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your .env.local file.");
     }
 
     const { error, data } = await supabase.auth.signInWithPassword({

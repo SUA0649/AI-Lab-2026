@@ -11,7 +11,8 @@ export interface Product {
   created_at: string
   updated_at: string
   supplier: string
-  // Status field removed
+  status?: string
+  Status?: "active" | "inactive"
 }
 
 export type LedgerEntry = {
@@ -41,7 +42,7 @@ export interface Transaction {
   created_at: string
   updated_at: string
   customer_supplier: string
-  // Status field removed
+  Status: "Pending" | "Completed"
 }
 
 export interface LowStockAlert {

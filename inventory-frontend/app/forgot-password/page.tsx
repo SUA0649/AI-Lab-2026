@@ -13,7 +13,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setMessage("");
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "https://inventory-pro-opal.vercel.app/reset-password",
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/reset-password`, //"https://inventory-pro-opal.vercel.app/reset-password"
     });
     if (error) {
       setMessage("Error: " + error.message);

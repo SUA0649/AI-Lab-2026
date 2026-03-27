@@ -34,50 +34,50 @@ export default function DashboardPage() {
     }
   }, [user, loading, router])
 
-/* 
-  const fetchDashboardData = async () => {
+  /* 
+    const fetchDashboardData = async () => {
+      try {
+        const statsData = api.getDashboardStats().then((data) => {
+          setTotalProducts(data.total_products);
+          setactiveUsers(data.active_users);
+          settoday_sell_total(data.today_sell_total);
+          setn_low_stock_items(data.n_low_stock_items);
+          setn_in_stock_items(data.n_in_stock_items);
+          setget_n_out_of_stock_items(data.get_n_out_of_stock_items);
+        });
+        setStats(api.getDashboardStats())
+        console.log("Dashboard Stats:", stats)
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error)
+      } finally {
+        setDashboardLoading(false)
+      }
+    };
+  */
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  const fetchTotalInventory = async () => {
     try {
-      const statsData = api.getDashboardStats().then((data) => {
-        setTotalProducts(data.total_products);
-        setactiveUsers(data.active_users);
-        settoday_sell_total(data.today_sell_total);
-        setn_low_stock_items(data.n_low_stock_items);
-        setn_in_stock_items(data.n_in_stock_items);
-        setget_n_out_of_stock_items(data.get_n_out_of_stock_items);
-      });
-      setStats(api.getDashboardStats())
-      console.log("Dashboard Stats:", stats)
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error)
+      const response = await fetch("http://localhost:5000/api/Dashboard"); //"https://inventory-pro-self.vercel.app/api/Dashboard"
+      const data = await response.json();
+      setTotalProducts(data.total_products);
+      setactiveUsers(data.n_active_users);
+      settoday_sell_total(data.today_sell_total);
+      setn_low_stock_items(data.n_low_stock_items);
+      setget_n_out_of_stock_items(data.get_n_out_of_stock_items);
+      setn_in_stock_items(data.n_in_stock_items);
+      setweekly_sales_purchases(data.weekly_sales_purchases);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
-      setDashboardLoading(false)
+      setLoading(false);
+      setDashboardLoading(false);
     }
   };
-*/
-    
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-const fetchTotalInventory = async () => {
-  try {
-    const response = await fetch("https://inventory-pro-self.vercel.app/api/Dashboard");
-    const data = await response.json();
-    setTotalProducts(data.total_products);
-    setactiveUsers(data.n_active_users);
-    settoday_sell_total(data.today_sell_total);
-    setn_low_stock_items(data.n_low_stock_items);
-    setget_n_out_of_stock_items(data.get_n_out_of_stock_items);
-    setn_in_stock_items(data.n_in_stock_items);
-    setweekly_sales_purchases(data.weekly_sales_purchases);
-  } catch (err: any) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-    setDashboardLoading(false);
-  }
-};
 
 
-  
+
   useEffect(() => {
     if (user) {
       //fetchDashboardData();

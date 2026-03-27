@@ -74,12 +74,7 @@ export function Sidebar() {
       icon: ShoppingCart,
       permission: "canViewTransactions" as const,
     },
-    {
-      name: "General Journal",
-      href: "/general-ledger",
-      icon: Archive, // You can use a more appropriate icon
-      permission: "canViewDashboard" as const,
-    },
+
   ];
 
   // Filter navigation based on permissions

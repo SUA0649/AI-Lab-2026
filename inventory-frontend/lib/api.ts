@@ -2,13 +2,14 @@
 import type { Product, Transaction, LowStockAlert, DashboardStats, LedgerEntry, LedgerEntry2, Accounts } from "./types";
 
 //Defining URL base once
-//const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
+//const BASE_URL = process.env.NEXT_PUBLIC_API_URL || ;
+const BASE_URL = "http://127.0.0.1:5000/api/";
+// Deployed URL = "https://inventory-pro-self.vercel.app/api/"
 export const api = {
   // General Ledger
   async addLedgerEntry(entry: LedgerEntry) {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/Ledger", {
+      const response = await fetch(`${BASE_URL}Ledger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entry),
@@ -23,7 +24,7 @@ export const api = {
 
   async deleteTransaction(id: string): Promise<void> {
     try {
-      const response = await fetch(`https://inventory-pro-self.vercel.app/api/Transactions/${id}`, {
+      const response = await fetch(`${BASE_URL}Transactions/${id}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error(`Failed to delete transaction: ${response.statusText}`);
@@ -35,7 +36,7 @@ export const api = {
   // Products
   async getProducts(): Promise<Product[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/Products");
+      const response = await fetch(`${BASE_URL}Products`);
       if (!response.ok) throw new Error(`Failed to fetch products: ${response.statusText}`);
       const data = await response.json();
       if (!data || !data.Products_table) throw new Error("Products not found");
@@ -47,7 +48,7 @@ export const api = {
 
   async getProduct(id: string): Promise<Product | null> {
     try {
-      const response = await fetch(`https://inventory-pro-self.vercel.app/api/Products/${id}`);
+      const response = await fetch(`${BASE_URL}Products/${id}`);
       if (!response.ok) throw new Error(`Failed to fetch product: ${response.statusText}`);
       const data = await response.json();
       if (!data) throw new Error("Product not found");
@@ -59,7 +60,7 @@ export const api = {
 
   async createProduct(product: Omit<Product, "id" | "created_at" | "updated_at">): Promise<Product> {
     try {
-      let res = await fetch("https://inventory-pro-self.vercel.app/api/Products", {
+      let res = await fetch(`${BASE_URL}Products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product),
@@ -71,13 +72,13 @@ export const api = {
       const amount = product.selling_price * product.quantity;
 
       // Ledger entries
-      await fetch("https://inventory-pro-self.vercel.app/api/Ledger", {
+      await fetch(`${BASE_URL}Ledger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountTitle: "Inventory", debit: amount, credit: null, description: `Product added: ${product.name}` }),
       });
 
-      await fetch("https://inventory-pro-self.vercel.app/api/Ledger", {
+      await fetch(`${BASE_URL}Ledger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountTitle: "Accounts Payable", debit: null, credit: amount, description: `Product added: ${product.name}` }),
@@ -91,7 +92,7 @@ export const api = {
 
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
     try {
-      const response = await fetch(`https://inventory-pro-self.vercel.app/api/Products/${id}`, {
+      const response = await fetch(`${BASE_URL}Products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -107,7 +108,7 @@ export const api = {
 
   async deleteProduct(id: string): Promise<void> {
     try {
-      const response = await fetch(`https://inventory-pro-self.vercel.app/api/Products/${id}`, {
+      const response = await fetch(`${BASE_URL}Products/${id}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error(`Failed to delete product: ${response.statusText}, ID: ${id}`);
@@ -119,7 +120,7 @@ export const api = {
   // Transactions
   async getTransactions(): Promise<Transaction[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/Transactions");
+      const response = await fetch(`${BASE_URL}Transactions`);
       if (!response.ok) throw new Error(`Failed to fetch transactions: ${response.statusText}`);
       const data = await response.json();
       return data.Transactions_table as Transaction[];
@@ -130,7 +131,7 @@ export const api = {
 
   async createTransaction(transaction: Omit<Transaction, "id" | "created_at">): Promise<Transaction> {
     try {
-      let res = await fetch("https://inventory-pro-self.vercel.app/api/Transactions", {
+      let res = await fetch(`${BASE_URL}Transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(transaction),
@@ -144,14 +145,6 @@ export const api = {
 
       const newTransaction: Transaction = { ...transaction, id: data[0].id, created_at: new Date().toISOString() };
 
-      if (newTransaction.type === "purchase") {
-        await api.addLedgerEntry({ accountTitle: "Accounts Payable", debit: newTransaction.total_price, credit: null, description: `Purchase: ${newTransaction.item_name}` });
-        await api.addLedgerEntry({ accountTitle: "Cash", debit: null, credit: newTransaction.total_price, description: `Purchase: ${newTransaction.item_name}` });
-      } else if (newTransaction.type === "sale") {
-        await api.addLedgerEntry({ accountTitle: "Cash", debit: newTransaction.total_price, credit: null, description: `Sale: ${newTransaction.item_name}` });
-        await api.addLedgerEntry({ accountTitle: "Inventory", debit: null, credit: newTransaction.total_price, description: `Sale: ${newTransaction.item_name}` });
-      }
-
       return newTransaction;
     } catch (error) {
       throw new Error(`Failed to create transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -161,7 +154,7 @@ export const api = {
   // Low Stock Alerts
   async getLowStockAlerts(): Promise<LowStockAlert[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/LowStock");
+      const response = await fetch(`${BASE_URL}LowStock`);
       if (!response.ok) throw new Error(`Failed to fetch low stock alerts: ${response.statusText}`);
       const data = await response.json();
       return data.Low_Stock_items as LowStockAlert[];
@@ -173,7 +166,7 @@ export const api = {
   // Dashboard Stats
   async getDashboardStats(): Promise<DashboardStats[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/Dashboard");
+      const response = await fetch(`${BASE_URL}Dashboard`);
       if (!response.ok) throw new Error(`Failed to fetch dashboard stats: ${response.statusText}`);
       const data = await response.json();
       return data as DashboardStats[];
@@ -185,7 +178,7 @@ export const api = {
   // Ledger
   async getLedger(): Promise<LedgerEntry2[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/Ledger");
+      const response = await fetch(`${BASE_URL}Ledger`);
       if (!response.ok) throw new Error(`Failed to fetch ledger: ${response.statusText}`);
       const data = await response.json();
       if (!data || !data.General_Ledger) throw new Error("Ledger not found");
@@ -207,25 +200,27 @@ export const api = {
   // Accounts
   async get_Existing_Emails(): Promise<Accounts[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/accounts");
-      if (!response.ok) throw new Error(`Failed to fetch ledger: ${response.statusText}`);
+      const response = await fetch(`${BASE_URL}accounts`);
+      console.log(response);
+      if (!response.ok) throw new Error(`Failed to fetch existing emails: ${response.statusText}`);
       const data = await response.json();
+      console.log(data);
       if (!data || !data.Existing_Emails) throw new Error("Emails not found");
       return data.Existing_Emails.map((entry: any) => ({ emails: entry.emails })) as Accounts[];
     } catch (error) {
-      throw new Error(`Failed to fetch ledger: ${error instanceof Error ? error.message : ' Unknown error'}`);
+      throw new Error(`Failed to fetch existing emails: ${error instanceof Error ? error.message : ' Unknown error'}`);
     }
   },
 
   async get_Confirmed_Emails(): Promise<Accounts[]> {
     try {
-      const response = await fetch("https://inventory-pro-self.vercel.app/api/accounts");
-      if (!response.ok) throw new Error(`Failed to fetch ledger: ${response.statusText}`);
+      const response = await fetch(`${BASE_URL}accounts`);
+      if (!response.ok) throw new Error(`Failed to fetch confirmed emails: ${response.statusText}`);
       const data = await response.json();
       if (!data || !data.Confirmed_Emails) throw new Error("Emails not found");
       return data.Confirmed_Emails.map((entry: any) => ({ emails: entry.emails })) as Accounts[];
     } catch (error) {
-      throw new Error(`Failed to fetch ledger: ${error instanceof Error ? error.message : ' Unknown error'}`);
+      throw new Error(`Failed to fetch confirmed emails: ${error instanceof Error ? error.message : ' Unknown error'}`);
     }
   },
 };

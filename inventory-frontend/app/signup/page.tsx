@@ -61,7 +61,7 @@ export default function SignUpPage() {
         return;
       }
     } catch (err: any) {
-      setError("Error checking email existence");
+      setError(err.message); //"Error checking email existence"
       setLoading(false);
       return;
     }
@@ -137,6 +137,29 @@ export default function SignUpPage() {
                   required
                   className="h-12 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500 rounded-lg transition-colors"
                 />
+              </div>
+
+              {/* Role Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="role"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Account Role
+                </Label>
+                <Select
+                  value={role}
+                  onValueChange={(value) => setRole(value as UserRole)}
+                  required
+                >
+                  <SelectTrigger className="h-12 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500 rounded-lg transition-colors">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Email Field */}

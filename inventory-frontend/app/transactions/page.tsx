@@ -4,6 +4,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { useRoleAccess } from "@/hooks/use-role-access";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 
 export default function TransactionsPage() {
   const { user, loading } = useAuth();
+  const { hasPermission } = useRoleAccess();
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -51,27 +53,77 @@ export default function TransactionsPage() {
   >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   const [formData, setFormData] = useState({
-    product_id: "",
-    type: "sale" as "sale" | "purchase",
-    quantity: "",
-    price: "",
+    items: [{ product_id: "", quantity: "", price: "", extended_price: 0 }],
+    type: "Sell",
     notes: "",
+    name: "",
+    status: "Pending",
   });
-  // Auto-fill unit price based on product and transaction type
-  useEffect(() => {
-    const selectedProduct = products.find((p) => p.item_id === formData.product_id);
-    if (selectedProduct) {
-      if (formData.type === "sale") {
-        setFormData((prev) => ({ ...prev, price: selectedProduct.selling_price.toString() }));
-      } else if (formData.type === "purchase") {
-        setFormData((prev) => ({ ...prev, price: selectedProduct.cost_price.toString() }));
+
+  const updateItem = (index: number, field: string, value: string) => {
+    setFormData((prev) => {
+      const newItems = [...prev.items];
+      const item = { ...newItems[index], [field]: value };
+
+      const selectedProduct = products.find((p) => p.item_id === item.product_id);
+      if (selectedProduct) {
+        if (prev.type === "Sell" || prev.type === "Customer Return") {
+          item.price = selectedProduct.selling_price.toFixed(2);
+        } else if (prev.type === "Buy" || prev.type === "Supplier Return") {
+          item.price = selectedProduct.cost_price.toFixed(2);
+        }
       }
-    }
-  }, [formData.product_id, formData.type, products]);
+
+      const qty = parseFloat(item.quantity) || 0;
+      const price = parseFloat(item.price) || 0;
+      item.extended_price = parseFloat((qty * price).toFixed(2));
+
+      newItems[index] = item;
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const handleTypeChange = (value: string) => {
+    setFormData((prev) => {
+      const newItems = prev.items.map((item) => {
+        const newItem = { ...item };
+        const selectedProduct = products.find((p) => p.item_id === newItem.product_id);
+        if (selectedProduct) {
+          if (value === "Sell" || value === "Customer Return") {
+            newItem.price = selectedProduct.selling_price.toFixed(2);
+          } else if (value === "Buy" || value === "Supplier Return") {
+            newItem.price = selectedProduct.cost_price.toFixed(2);
+          }
+        }
+        const qty = parseFloat(newItem.quantity) || 0;
+        const price = parseFloat(newItem.price) || 0;
+        newItem.extended_price = parseFloat((qty * price).toFixed(2));
+        return newItem;
+      });
+      return { ...prev, type: value, items: newItems };
+    });
+  };
+
+  const addItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      items: [...prev.items, { product_id: "", quantity: "", price: "", extended_price: 0 }],
+    }));
+  };
+
+  const removeItem = (index: number) => {
+    setFormData((prev) => {
+      const newItems = prev.items.filter((_, i) => i !== index);
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const grandTotal = formData.items.reduce((sum, item) => sum + item.extended_price, 0).toFixed(2);
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this transaction?")) {
@@ -100,11 +152,14 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     let filtered = transactions.filter(
-      (transaction) =>
-        transaction.item_name
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        transaction.type.toLowerCase().includes(searchTerm.toLowerCase())
+      (transaction) => {
+        const itemNameStr = Array.isArray(transaction.item_name) 
+          ? transaction.item_name.join(' ') 
+          : String(transaction.item_name || '');
+          
+        return itemNameStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               String(transaction.type || '').toLowerCase().includes(searchTerm.toLowerCase());
+      }
     );
 
     if (filterType !== "all") {
@@ -113,8 +168,14 @@ export default function TransactionsPage() {
       );
     }
 
+    if (filterStatus !== "all") {
+      filtered = filtered.filter(
+        (transaction) => (transaction as any).Status === filterStatus
+      );
+    }
+
     setFilteredTransactions(filtered);
-  }, [transactions, searchTerm, filterType]);
+  }, [transactions, searchTerm, filterType, filterStatus]);
 
   const fetchData = async () => {
     try {
@@ -134,48 +195,28 @@ export default function TransactionsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const selectedProduct = products.find(
-        (p) => p.item_id === formData.product_id
-      );
-      if (!selectedProduct) return;
+      const validItems = formData.items.filter(item => item.product_id && item.quantity);
+      if (validItems.length === 0) return;
 
+      const itemNames = validItems.map(item => {
+        const p = products.find(prod => prod.item_id === item.product_id);
+        return p ? p.name : "";
+      });
+      const quantities = validItems.map(item => parseFloat(item.quantity) || 0);
 
-      /*
-      id: string
-  item_name: string
-  type: "sale" | "purchase"
-  quantity: number
-  unit_price: number
-  total_price: number
-  remarks?: string
-  customer_supplier: string
-  Status: "completed" | "pending"
-      */
-      /*const transactionData = {
-        id: formData.product_id,
-        item_name: selectedProduct.name,
+      const transactionData: any = {
+        item_name: itemNames,
         type: formData.type,
-        quantity: Number.parseInt(formData.quantity),
-        unit_price: Number.parseFloat(formData.price),
-        total_price: Number.parseInt(formData.quantity) * Number.parseFloat(formData.price),
-        remarks: formData.notes,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        customer_supplier: "current_user", // Replace with actual user ID
-        Status: "completed", // Default to completed, can be changed later
-      };*/
-      const transactionData: Omit<Transaction, "id" | "created_at" | "Status"> = {
-        item_name: selectedProduct.name,
-        type: formData.type,
-        quantity: parseInt(formData.quantity, 10),
-        unit_price: parseFloat(formData.price),
-        total_price: parseInt(formData.quantity, 10) * parseFloat(formData.price),
-        remarks: formData.notes || undefined,
-        customer_supplier: formData.type === "sale" ? "Customer" : "Supplier", // Default values
+        quantity: quantities,
+        remarks: formData.notes || "",
+        name: formData.name,
+        Status: formData.status,
+        total_price: parseFloat(grandTotal)
       };
+
       const newTransaction = await api.createTransaction(transactionData);
-        setTransactions((prev) => [newTransaction, ...prev]);
-        resetForm();
+      setTransactions((prev: any) => [newTransaction, ...prev]);
+      resetForm();
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error("Error creating transaction:", error);
@@ -184,19 +225,21 @@ export default function TransactionsPage() {
 
   const resetForm = () => {
     setFormData({
-      product_id: "",
-      type: "sale",
-      quantity: "",
-      price: "",
+      items: [{ product_id: "", quantity: "", price: "", extended_price: 0 }],
+      type: "Sell",
       notes: "",
+      name: "",
+      status: "Pending",
     });
   };
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
-      case "sale":
+      case "Sell":
+      case "Customer Return":
         return <ArrowUpRight className="h-4 w-4 text-green-600" />;
-      case "purchase":
+      case "Buy":
+      case "Supplier Return":
         return <ArrowDownRight className="h-4 w-4 text-blue-600" />;
       case "adjustment":
         return <Settings className="h-4 w-4 text-orange-600" />;
@@ -207,9 +250,11 @@ export default function TransactionsPage() {
 
   const getTransactionBadgeColor = (type: string) => {
     switch (type) {
-      case "sale":
+      case "Sell":
+      case "Customer Return":
         return "default";
-      case "purchase":
+      case "Buy":
+      case "Supplier Return":
         return "secondary";
       case "adjustment":
         return "outline";
@@ -221,12 +266,12 @@ export default function TransactionsPage() {
   // Calculate financial summaries
   const calculateFinancialSummary = () => {
     const totalSales = transactions
-      .filter((t) => t.type === "sale")
-      .reduce((sum, t) => sum + t.total_price, 0);
+      .filter((t: any) => t.type === "Sell" || t.type === "Customer Return")
+      .reduce((sum, t: any) => sum + (t.total_price || 0), 0);
 
     const totalPurchases = transactions
-      .filter((t) => t.type === "purchase")
-      .reduce((sum, t) => sum + t.total_price, 0);
+      .filter((t: any) => t.type === "Buy" || t.type === "Supplier Return")
+      .reduce((sum, t: any) => sum + (t.total_price || 0), 0);
 
     const grossMargin = totalSales - totalPurchases;
 
@@ -267,123 +312,192 @@ export default function TransactionsPage() {
                   Track all inventory movements and financial performance
                 </p>
               </div>
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={resetForm}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Transaction
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Transaction</DialogTitle>
-                    <DialogDescription>
-                      Record a new inventory transaction
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="product">Product</Label>
-                      <Select
-                        value={formData.product_id}
-                        onValueChange={(value) => {
-                          setFormData({ ...formData, product_id: value });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.map((product) => (
-                            <SelectItem key={product.item_id} value={product.item_id}>
-                              {product.name} ({product.sku})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="type">Transaction Type</Label>
-                      <Select
-                        value={formData.type}
-                        onValueChange={(value: any) => {
-                          setFormData({ ...formData, type: value });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="sale">Customer</SelectItem>
-                          <SelectItem value="purchase">Supplier</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+              {hasPermission("canCreateTransactions") ? (
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      onClick={resetForm}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Transaction
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[84rem] max-h-[95vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl">Add New Transaction</DialogTitle>
+                      <DialogDescription>
+                        Record a new inventory transaction
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="type">Transaction Type</Label>
+                          <Select
+                            value={formData.type}
+                            onValueChange={handleTypeChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Buy">Buy</SelectItem>
+                              <SelectItem value="Sell">Sell</SelectItem>
+                              <SelectItem value="Customer Return">Customer Return</SelectItem>
+                              <SelectItem value="Supplier Return">Supplier Return</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="status">Status</Label>
+                          <Select
+                            value={formData.status}
+                            onValueChange={(value) => setFormData({ ...formData, status: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Pending">Pending</SelectItem>
+                              <SelectItem value="Completed">Completed</SelectItem>
+                              <SelectItem value="Cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(formData.type === "Sell" || formData.type === "Customer Return" || formData.type === "Buy" || formData.type === "Supplier Return") && (
+                        <div>
+                          <Label htmlFor="name">
+                            {(formData.type === "Sell" || formData.type === "Customer Return") ? "Customer Name:" : "Supplier Name:"}
+                          </Label>
+                          <Input
+                            id="name"
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            required
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-2 border p-3 rounded-md">
+                        <div className="flex justify-between items-center mb-2">
+                          <Label className="font-semibold">Products</Label>
+                          <Button type="button" size="sm" variant="outline" onClick={addItem}>
+                            <Plus className="h-4 w-4 mr-1" /> Add Product
+                          </Button>
+                        </div>
+                        {formData.items.map((item, index) => (
+                          <div key={index} className="grid grid-cols-12 gap-2 items-end mb-2">
+                            <div className="col-span-5">
+                              <Label className="text-xs">Product</Label>
+                              <Select
+                                value={item.product_id}
+                                onValueChange={(value) => updateItem(index, "product_id", value)}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue placeholder="Select product" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {products.map((product) => (
+                                    <SelectItem key={product.item_id} value={product.item_id}>
+                                      {product.name} ({product.sku})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs">Qty</Label>
+                              <Input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => updateItem(index, "quantity", e.target.value)}
+                                className="h-9"
+                                required
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs">Unit Price</Label>
+                              <Input
+                                type="number"
+                                value={item.price}
+                                readOnly
+                                className="h-9 bg-gray-50"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs">Ext Price</Label>
+                              <Input
+                                type="text"
+                                value={item.extended_price.toFixed(2)}
+                                readOnly
+                                className="h-9 bg-gray-50 font-medium"
+                              />
+                            </div>
+                            <div className="col-span-1 pb-1">
+                              {formData.items.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => removeItem(index)}
+                                >
+                                  &times;
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex justify-end pt-2 pb-2">
+                        <div className="text-lg">
+                          <span className="font-semibold mr-2">Grand Total:</span>
+                          <span className="font-bold">${grandTotal}</span>
+                        </div>
+                      </div>
+
                       <div>
-                        <Label htmlFor="quantity">Quantity</Label>
-                        <Input
-                          id="quantity"
-                          type="number"
-                          value={formData.quantity}
+                        <Label htmlFor="notes">Notes (Optional)</Label>
+                        <Textarea
+                          id="notes"
+                          value={formData.notes}
                           onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              quantity: e.target.value,
-                            })
+                            setFormData({ ...formData, notes: e.target.value })
                           }
-                          required
+                          placeholder="Add any additional notes..."
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="price">Unit Price ($)</Label>
-                        <Input
-                          id="price"
-                          type="number"
-                          step="0.01"
-                          value={formData.price}
-                          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                          required
-                          // Optionally, you can add readOnly if you want to prevent manual editing:
-                          // readOnly
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="notes">Notes (Optional)</Label>
-                      <Textarea
-                        id="notes"
-                        value={formData.notes}
-                        onChange={(e) =>
-                          setFormData({ ...formData, notes: e.target.value })
-                        }
-                        placeholder="Add any additional notes..."
-                      />
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsAddDialogOpen(false);
-                          resetForm();
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Add Transaction
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setIsAddDialogOpen(false);
+                            resetForm();
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          Add Transaction
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <span className="text-sm font-semibold text-red-600 border border-red-300 bg-red-50 px-4 py-2 rounded">
+                  Admin access required
+                </span>
+              )}
             </div>
 
             {/* Financial Summary Cards */}
@@ -432,22 +546,19 @@ export default function TransactionsPage() {
                     Gross Margin
                   </CardTitle>
                   <div
-                    className={`w-8 h-8 ${
-                      grossMargin >= 0 ? "bg-green-100" : "bg-red-100"
-                    } rounded-lg flex items-center justify-center`}
+                    className={`w-8 h-8 ${grossMargin >= 0 ? "bg-green-100" : "bg-red-100"
+                      } rounded-lg flex items-center justify-center`}
                   >
                     <DollarSign
-                      className={`h-4 w-4 ${
-                        grossMargin >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
+                      className={`h-4 w-4 ${grossMargin >= 0 ? "text-green-600" : "text-red-600"
+                        }`}
                     />
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div
-                    className={`text-2xl font-bold ${
-                      grossMargin >= 0 ? "text-green-600" : "text-red-600"
-                    }`}
+                    className={`text-2xl font-bold ${grossMargin >= 0 ? "text-green-600" : "text-red-600"
+                      }`}
                   >
                     ${grossMargin.toFixed(2)}
                   </div>
@@ -475,8 +586,20 @@ export default function TransactionsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="sale">Sales</SelectItem>
-                  <SelectItem value="purchase">Purchases</SelectItem>
+                  <SelectItem value="Buy">Buy</SelectItem>
+                  <SelectItem value="Sell">Sell</SelectItem>
+                  <SelectItem value="Customer Return">Customer Return</SelectItem>
+                  <SelectItem value="Supplier Return">Supplier Return</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-48 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -503,19 +626,18 @@ export default function TransactionsPage() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex items-center space-x-4 flex-1 min-w-0">
                           <div
-                            className={`p-3 rounded-full ${
-                              transaction.type === "sale"
-                                ? "bg-green-100"
-                                : transaction.type === "purchase"
+                            className={`p-3 rounded-full ${transaction.type === "Sell"
+                              ? "bg-green-100"
+                              : transaction.type === "Buy"
                                 ? "bg-blue-100"
                                 : "bg-orange-100"
-                            }`}
+                              }`}
                           >
                             {getTransactionIcon(transaction.type)}
                           </div>
                           <div className="min-w-0">
                             <h3 className="font-semibold text-lg break-words">
-                              {transaction.item_name}
+                              {Array.isArray(transaction.item_name) ? transaction.item_name.join(', ') : transaction.item_name}
                             </h3>
                             <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
                               <Badge
@@ -525,16 +647,13 @@ export default function TransactionsPage() {
                                   ) as any
                                 }
                               >
-                                {transaction.type === "sale"
-                                  ? "Customer (Sale)"
-                                  : transaction.type === "purchase"
-                                  ? "Supplier (Purchase)"
-                                  : typeof transaction.type === "string"
-                                  ? transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)
-                                  : "Other"}
+                                {typeof transaction.type === "string" ? transaction.type : "Other"}
                               </Badge>
-                              <span>{transaction.quantity} units</span>
-                              <span>${transaction.unit_price} per unit</span>
+                              <span>{Array.isArray(transaction.quantity) ? transaction.quantity.join(', ') : transaction.quantity} units</span>
+                              <span>{((transaction as any).name) ? `Name: ${(transaction as any).name}` : ""}</span>
+                              {((transaction as any).Status) && (
+                                <Badge variant="outline">{(transaction as any).Status}</Badge>
+                              )}
                             </div>
                             {transaction.remarks && (
                               <p className="text-sm text-gray-600 mt-1 break-words">
@@ -545,20 +664,19 @@ export default function TransactionsPage() {
                         </div>
                         <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 mt-2 sm:mt-0">
                           <p
-                            className={`text-2xl font-bold ${
-                              transaction.type === "sale"
-                                ? "text-green-600"
-                                : transaction.type === "purchase"
+                            className={`text-2xl font-bold ${(String(transaction.type) === "Sell" || String(transaction.type) === "Customer Return")
+                              ? "text-green-600"
+                              : (String(transaction.type) === "Buy" || String(transaction.type) === "Supplier Return")
                                 ? "text-blue-600"
                                 : "text-orange-600"
-                            }`}
+                              }`}
                           >
-                            {transaction.type === "sale"
+                            {(String(transaction.type) === "Sell" || String(transaction.type) === "Customer Return")
                               ? "+"
-                              : transaction.type === "purchase"
-                              ? "-"
-                              : ""}
-                            ${transaction.total_price.toFixed(2)}
+                              : (String(transaction.type) === "Buy" || String(transaction.type) === "Supplier Return")
+                                ? "-"
+                                : ""}
+                            ${transaction.total_price ? transaction.total_price.toFixed(2) : "0.00"}
                           </p>
                           <p className="text-sm text-gray-500 text-right break-words">
                             {new Date(
@@ -569,14 +687,16 @@ export default function TransactionsPage() {
                               transaction.created_at
                             ).toLocaleTimeString()}
                           </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-2 text-red-600 hover:text-red-700 border-red-200"
-                            onClick={() => handleDelete(transaction.id)}
-                          >
-                            Delete
-                          </Button>
+                          {hasPermission("canDeleteTransactions") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2 text-red-600 hover:text-red-700 border-red-200"
+                              onClick={() => handleDelete(transaction.id)}
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -592,7 +712,7 @@ export default function TransactionsPage() {
                   No transactions found
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  {searchTerm || filterType !== "all"
+                  {searchTerm || filterType !== "all" || filterStatus !== "all"
                     ? "Try adjusting your search or filter criteria."
                     : "Get started by recording your first transaction."}
                 </p>

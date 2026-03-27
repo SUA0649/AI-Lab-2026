@@ -41,7 +41,6 @@ export default function ProductsPage() {
     cost: "",
     quantity: "",
     threshold: "",
-    supplier: "",
     Status: "active", // Set default status to active
   })
 
@@ -118,7 +117,6 @@ export default function ProductsPage() {
         cost_price: parseFloat(formData.cost),
         quantity: parseInt(formData.quantity),
         threshold: parseInt(formData.threshold),
-        supplier: formData.supplier || "",
         Status: formData.Status as "active" | "inactive"
       };
 
@@ -149,7 +147,6 @@ export default function ProductsPage() {
       cost: product.cost_price?.toString() || "",
       quantity: product.quantity?.toString() || "",
       threshold: product.threshold?.toString() || "",
-      supplier: product.supplier || "",
       Status: product.Status || "active",
     })
 
@@ -178,7 +175,6 @@ export default function ProductsPage() {
       cost: "",
       quantity: "",
       threshold: "",
-      supplier: "",
       Status: "active",
     })
   }
@@ -259,11 +255,6 @@ export default function ProductsPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div>
-                          <Label htmlFor="supplier">Supplier</Label>
-                          <Input id="supplier" value={formData.supplier} onChange={(e) => setFormData({ ...formData, supplier: e.target.value })} />
-                        </div>
-                        {/* Status field removed */}
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -362,10 +353,6 @@ export default function ProductsPage() {
                                 <AlertTriangle className="inline ml-1 h-3 w-3" />
                               )}
                             </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Supplier:</span>
-                            <span className="text-sm font-medium">{product.supplier}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Status:</span>
