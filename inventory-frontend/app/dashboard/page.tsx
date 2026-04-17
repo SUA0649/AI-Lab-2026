@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
   const fetchTotalInventory = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/Dashboard"); //"https://inventory-pro-self.vercel.app/api/Dashboard"
+      const response = await fetch("http://localhost:5006/api/Dashboard"); //"https://inventory-pro-self.vercel.app/api/Dashboard"
       const data = await response.json();
       setTotalProducts(data.total_products);
       setactiveUsers(data.n_active_users);

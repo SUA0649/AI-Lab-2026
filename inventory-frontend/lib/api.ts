@@ -3,7 +3,7 @@ import type { Product, Transaction, LowStockAlert, DashboardStats, LedgerEntry, 
 
 //Defining URL base once
 //const BASE_URL = process.env.NEXT_PUBLIC_API_URL || ;
-const BASE_URL = "http://127.0.0.1:5000/api/";
+const BASE_URL = "http://127.0.0.1:5006/api/";
 // Deployed URL = "https://inventory-pro-self.vercel.app/api/"
 export const api = {
   // General Ledger

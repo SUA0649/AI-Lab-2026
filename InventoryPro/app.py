@@ -32,9 +32,7 @@ jwt_secret = os.getenv('SUPABASE_JWT_SECRET')
 
 # app instance
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
- 
-# Health check route
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 @app.route('/', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'message': 'Backend is running'}), 200
@@ -46,6 +44,7 @@ from api.Products import products_bp
 from api.LowStock import lowstock_bp
 from api.accounts import accounts_bp
 from api.Transactions import transactions_bp
+from api.Agent_api import agent_bp
 
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(inventory_bp)
@@ -53,7 +52,9 @@ app.register_blueprint(products_bp)
 app.register_blueprint(lowstock_bp)
 app.register_blueprint(accounts_bp)
 app.register_blueprint(transactions_bp)
+app.register_blueprint(agent_bp)
+
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5006)
     #app.run()
