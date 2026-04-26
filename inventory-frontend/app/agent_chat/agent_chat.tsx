@@ -48,7 +48,7 @@ export default function AIAgentChat() {
 
     try {
       // Call the agent API
-      const response = await fetch('http://localhost:5001/api/agent/chat', {
+      const response = await fetch('http://localhost:5006/api/agent/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ export default function AIAgentChat() {
       
       const errorMessage: Message = {
         role: 'agent',
-        content: 'I apologize, but I\'m having trouble connecting right now. Please make sure the agent API is running on http://localhost:5001',
+        content: 'I apologize, but I\'m having trouble connecting right now. Please make sure the agent API is running on http://localhost:5006',
         timestamp: new Date()
       }
       
@@ -143,9 +143,9 @@ export default function AIAgentChat() {
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col p-0">
+      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         {/* Messages Area */}
-        <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
+        <div ref={scrollAreaRef as any} className="flex-1 p-4 overflow-y-auto">
           <div className="space-y-4">
             {messages.map((message, index) => (
               <div
@@ -205,7 +205,7 @@ export default function AIAgentChat() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Input Area */}
         <div className="border-t p-4">
