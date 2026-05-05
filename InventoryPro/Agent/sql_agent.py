@@ -12,7 +12,7 @@ import sqlparse
 from dotenv import load_dotenv
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain.agents import create_agent    
+from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import StructuredTool
 from langchain_groq import ChatGroq
 
@@ -43,8 +43,8 @@ def get_db() -> SQLDatabase:
 def get_llm() -> ChatGroq:
     
     try:    
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key: raise ValueError("GROQ_API_KEY is not set. Add it to your .env file.")
+        api_key = os.getenv("GROQ_API_KEY_2")
+        if not api_key: raise ValueError("GROQ_API_KEY_2 is not set. Add it to your .env file.")
 
         llm = ChatGroq(
             api_key=api_key,
@@ -166,9 +166,9 @@ MANDATORY STEPS — never skip:
 
 # BUILD AGENT
 
-def build_agent(db: SQLDatabase, llm: ChatGroq):
+def build_agent(db: SQLDatabase, llm):
     """
-    Assemble the LangChain SQL agent using the new-style `create_agent`.
+    Assemble the LangChain SQL agent using LangGraph's create_react_agent.
     Tool set
     --------
     - Standard SQLDatabaseToolkit tools (list_tables, schema, query_checker)
@@ -178,7 +178,7 @@ def build_agent(db: SQLDatabase, llm: ChatGroq):
 
     Returns
     -------
-    A compiled LangGraph agent (returned by create_agent). Invoke with:
+    A compiled LangGraph agent. Invoke with:
         agent.invoke({"messages": [{"role": "user", "content": question}]})
     """
     try: 
@@ -206,10 +206,10 @@ def build_agent(db: SQLDatabase, llm: ChatGroq):
         
         print(f"Tools registered: {[t.name for t in all_tools]}")
 
-        # create_agent (new-style) — mirrors tutorial.ipynb exactly
+        # create_react_agent (LangGraph) — builds a compiled agent graph
         # system_prompt is injected as a plain string; dialect/top_k are our substitutions
 
-        return create_agent(llm, all_tools, system_prompt=SYSTEM_PROMPT.format(dialect=db.dialect, top_k=10))
+        return create_react_agent(llm, all_tools, prompt=SYSTEM_PROMPT.format(dialect=db.dialect, top_k=10))
     
     except Exception as e:
         print(f"Error building agent: {e}")
