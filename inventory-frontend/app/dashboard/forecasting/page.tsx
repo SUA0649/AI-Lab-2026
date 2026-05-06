@@ -18,9 +18,10 @@ import { Sidebar } from "@/components/layout/sidebar";
 interface ForecastData {
     product_id: string;
     product_name: string;
-    confidence_score: number;
-    history: number[];
-    forecast: Record<string, number>;
+    confidence_score?: number;
+    history?: number[];
+    forecast?: Record<string, number>;
+    error?: string;
     insights: {
         current_stock: number;
         needs_restock: boolean;
@@ -55,7 +56,7 @@ export default function ForecastDashboard() {
     }, []);
 
     const chartData = useMemo(() => {
-        if (!selectedProduct) return [];
+        if (!selectedProduct || !selectedProduct.history || !selectedProduct.forecast) return [];
 
         const historyPoints = selectedProduct.history.map((val, i) => ({
             name: `Past ${selectedProduct.history.length - i}`,
@@ -91,7 +92,7 @@ export default function ForecastDashboard() {
                 </div>
                 <div className="flex gap-2">
                     <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                        <CheckCircle2 size={16} /> Confidence: {(selectedProduct.confidence_score * 100).toFixed(0)}%
+                        <CheckCircle2 size={16} /> Confidence: {selectedProduct.confidence_score ? (selectedProduct.confidence_score * 100).toFixed(0) + '%' : "N/A"}
                     </span>
                 </div>
             </header>
@@ -109,12 +110,12 @@ export default function ForecastDashboard() {
                                 }`}
                         >
                             <div className="flex justify-between items-start">
-                                <p className="font-semibold truncate">{item.product_name}</p>
-                                {item.insights.needs_restock && (
+                                <p className="font-semibold truncate">{item.product_name || "Unknown Product"}</p>
+                                {item.insights?.needs_restock && (
                                     <AlertCircle size={16} className="text-destructive animate-pulse" />
                                 )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">Stock: {item.insights.current_stock}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Stock: {item.insights?.current_stock ?? "N/A"}</p>
                         </button>
                     ))}
                 </div>
@@ -147,6 +148,12 @@ export default function ForecastDashboard() {
                             <ArrowUpRight size={20} className="text-primary" />
                             6-Month Sales Projection: {selectedProduct.product_name}
                         </h3>
+                        {selectedProduct.error ? (
+                            <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground bg-muted/20 rounded-xl border border-dashed mt-4">
+                                <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
+                                <p>{selectedProduct.error}</p>
+                            </div>
+                        ) : (
                         <ResponsiveContainer width="100%" height="90%">
                             <LineChart data={chartData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -179,6 +186,7 @@ export default function ForecastDashboard() {
                                 />
                             </LineChart>
                         </ResponsiveContainer>
+                        )}
                     </div>
                 </div>
             </div>

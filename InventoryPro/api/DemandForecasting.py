@@ -13,26 +13,6 @@ def calculate_product_forecast(product_id, product_name, current_stock, threshol
             trans_res = supabase.table('Transactions').select('quantity, created_at').eq('product_id', product_id).eq('Status', 'Completed').in_('type', ['Sell', 'Sell ']).execute()
             transactions = trans_res.data
 
-        if len(transactions) < 3:
-            if "Laptop" in product_name:
-                transactions = [
-                    {'quantity': 15, 'created_at': '2026-01-15T12:00:00'},
-                    {'quantity': 25, 'created_at': '2026-02-15T12:00:00'},
-                    {'quantity': 40, 'created_at': '2026-03-15T12:00:00'}
-                ]
-            elif "Mouse" in product_name:
-                transactions = [
-                    {'quantity': 80, 'created_at': '2026-01-15T12:00:00'},
-                    {'quantity': 60, 'created_at': '2026-02-15T12:00:00'},
-                    {'quantity': 35, 'created_at': '2026-03-15T12:00:00'}
-                ]
-            else:
-                transactions = [
-                    {'quantity': 30, 'created_at': '2026-01-15T12:00:00'},
-                    {'quantity': 32, 'created_at': '2026-02-15T12:00:00'},
-                    {'quantity': 28, 'created_at': '2026-03-15T12:00:00'}
-                ]
-        
         if not transactions:
             return {
                 "product_id": product_id,
@@ -47,7 +27,7 @@ def calculate_product_forecast(product_id, product_name, current_stock, threshol
 
         # Format data using Pandas
         df = pd.DataFrame(transactions)
-        df['created_at'] = pd.to_datetime(df['created_at'])
+        df['created_at'] = pd.to_datetime(df['created_at'], format='mixed')
         df.set_index('created_at', inplace=True)
         
         # Group by month and sum the quantities
