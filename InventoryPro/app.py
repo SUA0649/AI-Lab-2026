@@ -45,6 +45,7 @@ from api.LowStock import lowstock_bp
 from api.accounts import accounts_bp
 from api.Transactions import transactions_bp
 from api.Agent_api import agent_bp
+from api.DemandForecasting import demand_forecasting_bp
 
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(inventory_bp)
@@ -53,7 +54,7 @@ app.register_blueprint(lowstock_bp)
 app.register_blueprint(accounts_bp)
 app.register_blueprint(transactions_bp)
 app.register_blueprint(agent_bp)
-
+app.register_blueprint(demand_forecasting_bp)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5006)

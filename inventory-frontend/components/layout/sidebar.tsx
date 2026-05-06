@@ -14,6 +14,7 @@ import {
   Package,
   Archive,
   ShoppingCart,
+  LineChart,
   AlertTriangle,
   Settings,
   LogOut,
@@ -53,6 +54,12 @@ export function Sidebar() {
       name: "Dashboard",
       href: "/dashboard",
       icon: LayoutDashboard,
+      permission: "canViewDashboard" as const,
+    },
+    {
+      name: "Forecasting",
+      href: "/dashboard/forecasting",
+      icon: LineChart,
       permission: "canViewDashboard" as const,
     },
     {
