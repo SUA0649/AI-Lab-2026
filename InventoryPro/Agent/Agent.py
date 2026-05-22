@@ -9,40 +9,38 @@ import os
 import requests
 from typing import Dict, List, Any, Optional
 from dotenv import load_dotenv
-
+from .Semantic_Retrieval import retrieve_relevant_docs
 # Modern LangChain Imports
-from langchain_ollama import ChatOllama
+#from langchain_ollama import ChatOllama
 from langchain_groq import ChatGroq
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
-
-# SQL Agent imports (for the query_database fallback tool)
-from Agent.sql_agent import get_db, get_llm, build_agent, ask
+from .SQL_Retrieval import get_database_connection, build_sub_agent, ask
+import traceback as tb
 
 # Load environment variables
 load_dotenv()
 
-# ============================================================================
 # TOOL DEFINITIONS
-# ============================================================================
 
 @tool
 def get_inventory_summary() -> str:
-    """Get a summary of current inventory status including total products, low stock items, and out of stock items."""
+    """Get a summary of current inventory status including Total Stock Value, Active Items, low stock items, and out of stock items."""
     try:
         response = requests.get("http://127.0.0.1:5006/api/Inventory")
         if response.status_code == 200:
             data = response.json()
             return f"""
-Inventory Summary:
-- Total Stock Value: ${data.get('total_stock_value', 0)}
-- Active Items: {data.get('n_active_items', 0)}
-- Low Stock Items: {data.get('n_low_stock_items', 0)}
-- Out of Stock Items: {data.get('get_n_out_of_stock_items', 0)}
-"""
+                Inventory Summary:
+                - Total Stock Value: ${data.get('total_stock_value', 0)}
+                - Active Items: {data.get('n_active_items', 0)}
+                - Low Stock Items: {data.get('n_low_stock_items', 0)}
+                - Out of Stock Items: {data.get('get_n_out_of_stock_items', 0)}
+                """
         return "Failed to fetch inventory data"
     except Exception as e:
+        tb.print_exc()
         return f"Error fetching inventory: {str(e)}"
 
 @tool
@@ -71,6 +69,7 @@ def get_all_products() -> str:
             return result
         return "Failed to fetch products"
     except Exception as e:
+        tb.print_exc()
         return f"Error fetching products: {str(e)}"
 
 @tool
@@ -95,11 +94,12 @@ def get_low_stock_items() -> str:
             return "⚠️ Low Stock Alert:\n" + "\n".join(items)
         return "Failed to fetch low stock items"
     except Exception as e:
+        tb.print_exc()
         return f"Error fetching low stock items: {str(e)}"
 
 @tool
 def get_dashboard_stats() -> str:
-    """Get dashboard statistics including total products, sales, and active users."""
+    """Get dashboard statistics including total products, Today's Sales Total, Low Stock Items, Out of Stock Items, and active users."""
     try:
         response = requests.get("http://127.0.0.1:5006/api/Dashboard")
         if response.status_code == 200:
@@ -115,6 +115,7 @@ Dashboard Statistics:
 """
         return "Failed to fetch dashboard data"
     except Exception as e:
+        tb.print_exc()
         return f"Error fetching dashboard: {str(e)}"
 
 @tool
@@ -140,6 +141,7 @@ def get_recent_transactions() -> str:
             return "Recent Transactions:\n" + "\n".join(trans_list)
         return "Failed to fetch transactions"
     except Exception as e:
+        tb.print_exc()
         return f"Error fetching transactions: {str(e)}"
 
 @tool
@@ -148,9 +150,7 @@ def search_knowledge_base(query: str) -> str:
     Search the enterprise knowledge base. Requires a query string.
     """
     mock_knowledge = {
-        "restock policy": "Restocking is done on Friday mornings. Priority goes to electronics.",
-        "return policy": "Items can be returned within 30 days if unopened with original receipt.",
-        "supplier contact": "Our main supplier for electronics is TechDist (contact@techdist.com)."
+        "return policy": "Items can be returned within 30 days if unopened with original receipt."
     }
     
     query_lower = query.lower()
@@ -204,50 +204,85 @@ def record_transaction(transaction_type: str, input_text: str) -> str:
             return f"API Error {response.status_code} while recording transaction: {response.text}"
             
     except Exception as e:
+        tb.print_exc()
         return f"Failed to record transaction due to system error: {str(e)}"
 
-# ============================================================================
-# SQL AGENT SINGLETON
-# ============================================================================
-# The SQL agent is stateless and shared across all sessions.
-# It is initialized once (lazy) and reused for all analytical queries.
-# Uses Groq-only — if Groq is unavailable, the tool returns a graceful error.
+@tool
+def query_vector_database(query: str) -> str:
+    """
+    Vector database contains embeddings of all product descriptions and transaction records.
+    For user queries that require semantic understanding (e.g., "Which products are similar to 'Wood Planks'?" or "Find transactions related to 'Nails'"), 
+    this tool performs a semantic search against the vector database.
+    """
+    try:
+        IR_results = retrieve_relevant_docs(query)
+        if not IR_results:
+            return f"Vector database result for '{query}': No specific knowledge found."
+        formatted_results = "\n".join([f"- {doc} (Score: {score:.2f})" for doc, score in IR_results])
+        return f"Vector database results for '{query}':\n{formatted_results}"
+    except Exception as e:
+        tb.print_exc()
+        return f"Error querying vector database: {str(e)}"
+
+
+_global_llm, DATABASE_CONNECTION = None, None
+
+
+def _init_database():
+    global DATABASE_CONNECTION
+    if DATABASE_CONNECTION is None:
+        try:
+            DATABASE_CONNECTION = get_database_connection()
+            if DATABASE_CONNECTION: print("✅ Database connection initialized")
+            else: print("⚠️ Database connection failed")
+        except Exception as e:
+            tb.print_exc()
+            print(f"⚠️ Database initialization error: {e}")
 
 _sql_agent = None
 _sql_agent_init_attempted = False
 
 def _get_sql_agent():
-    """Lazy-initialize the SQL agent singleton. Returns None if init fails."""
-    global _sql_agent, _sql_agent_init_attempted
-    if _sql_agent_init_attempted:
-        return _sql_agent
+    global _sql_agent, _sql_agent_init_attempted, DATABASE_CONNECTION, _global_llm
+    if _sql_agent_init_attempted: return _sql_agent
     _sql_agent_init_attempted = True
     try:
-        db = get_db()
-        llm = get_llm()
-        if db and llm:
-            _sql_agent = build_agent(db, llm)
-            print("✅ SQL Agent initialized successfully (shared singleton)")
-        else:
-            print("⚠️ SQL Agent could not be initialized (db or llm failed)")
+        _init_database()
+        if not DATABASE_CONNECTION:
+            print("⚠️ SQL Agent: Database connection unavailable")
+            return None
+        
+        if not _global_llm:
+            print("⚠️ SQL Agent: LLM not initialized")
+            return None
+            
+        _sql_agent = build_sub_agent(_global_llm, DATABASE_CONNECTION)
+        
+        if _sql_agent: print("✅ SQL Agent initialized successfully")
+        else: print("⚠️ SQL Agent initialization returned None")
+            
     except Exception as e:
+        tb.print_exc()
         print(f"⚠️ SQL Agent initialization error: {e}")
+    
     return _sql_agent
 
 
 @tool
 def query_database(question: str) -> str:
-    """Query the PostgreSQL database directly using natural language.
+    """Query the SQL database directly using natural language.
     Use this tool ONLY for complex analytical queries that the other REST API tools cannot answer.
     Examples: aggregations, averages, date-range filtering, GROUP BY, JOINs, or comparisons.
     Do NOT use this for simple inventory lookups — use get_all_products or get_inventory_summary instead.
     """
     sql_agent = _get_sql_agent()
-    if not sql_agent:
-        return "⚠️ Database query tool is currently unavailable (initialization failed)."
+    
+    if not sql_agent: return "⚠️ Database query tool is currently unavailable (initialization failed)."
+    
     try:
         return ask(sql_agent, question)
     except Exception as e:
+        tb.print_exc()
         return f"⚠️ Could not process analytical query — the cloud LLM is currently unavailable. Please try again later or use the standard inventory tools. (Error: {type(e).__name__})"
 
 
@@ -257,57 +292,64 @@ def query_database(question: str) -> str:
 
 class InventoryAgent:
     def __init__(self):
-        # Phase 1: Groq (primary) with Ollama (fallback)
-        groq_api_key = os.getenv("GROQ_API_KEY_2")
+        try:
+            global _global_llm
+            # Phase 1: Groq (primary) with Ollama (fallback)
+            groq_api_key = os.getenv("GROQ_API_KEY")
+            
+            if not groq_api_key: raise Exception("GROQ_API_KEY not found")
 
-        if groq_api_key:
-            groq_llm = ChatGroq(
+            self.llm = ChatGroq(
                 api_key=groq_api_key,
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
                 temperature=0,
             )
-            ollama_llm = ChatOllama(
+            
+            _global_llm = self.llm  # Store in global for SQL agent access
+            
+            '''ollama_llm = ChatOllama(
                 model="gemma4:e4b",
                 temperature=0,
             )
             # Groq is primary; Ollama is the automatic fallback
-            self.llm = groq_llm.with_fallbacks([ollama_llm])
-            print("🧠 LLM: Groq (primary) → Ollama/gemma4 (fallback)")
-        else:
+            #.with_fallbacks([ollama_llm])
+            #print("🧠 LLM: Groq (primary) → Ollama/gemma4 (fallback)")
             # No Groq key — use Ollama directly
             self.llm = ChatOllama(
                 model="gemma4:e4b",
                 temperature=0,
             )
-            print("🧠 LLM: Ollama/gemma4 only (no GROQ_API_KEY_2 found)")
+            print("🧠 LLM: Ollama/gemma4 only (no GROQ_API_KEY found)")'''
         
         # Phase 2: Register all tools including the SQL agent fallback
-        self.tools = [
-            get_inventory_summary,
-            get_all_products,
-            get_low_stock_items,
-            get_dashboard_stats,
-            get_recent_transactions,
-            search_knowledge_base,
-            record_transaction,
-            query_database,
-        ]
+            self.tools = [
+                get_inventory_summary,
+                get_all_products,
+                get_low_stock_items,
+                get_dashboard_stats,
+                get_recent_transactions,
+                search_knowledge_base,
+                query_database,
+                query_vector_database,
+            ]
         
         # Phase 3: System prompt with explicit tool priority
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an intelligent inventory management assistant for InventoryPro.
-
-Your role is to help users understand and manage their inventory.
+            self.prompt = ChatPromptTemplate.from_messages([
+                ("system", """
+                 
+*** ABOUT INVENTORYPRO AI-ASSISTANT ***
+You are an AI-Assistant integrated in Inventory Management System, named as InventoryPro.
+Your role is just to help users understand and manage their inventory.
 You have tools to view stock, check low stock, read the knowledge base, place orders, and run analytical database queries.
 
-*** TOOL PRIORITY — READ CAREFULLY ***
-1. ALWAYS try these REST API tools FIRST — they are fast and reliable:
+*** HIGHLY CRITICAL INSTRUCTIONS ***
+1. ALWAYS prefer these REST API tools FIRST — they are fast and reliable:
    - get_inventory_summary: stock value, active items, low/out-of-stock counts
    - get_all_products: list of products with details (name, SKU, qty, price, status)
    - get_low_stock_items: items below their restock threshold
    - get_dashboard_stats: dashboard overview (total products, sales, users)
    - get_recent_transactions: last 5 transactions
-   - search_knowledge_base: enterprise policies (restock, returns, suppliers)
+   - search_knowledge_base: enterprise policies
 
 2. ONLY use `query_database` when the user needs something the above tools CANNOT provide:
    - Aggregations: "What is the average price per category?"
@@ -316,35 +358,39 @@ You have tools to view stock, check low stock, read the knowledge base, place or
    - Complex comparisons: "Top 5 most expensive products" or "products with quantity above 100"
    - Any question requiring SQL-level analysis
 
-3. NEVER use `query_database` for questions the REST tools can answer.
+3. For semantic queries (e.g., "Find products similar to 'Wood Planks'"), use `query_vector_database` instead of `query_database`.
+   - This tool is optimized for semantic search and will provide more relevant results for these types of questions.
 
-*** CRITICAL INSTRUCTION REGARDING TRANSACTIONS ***
-Recording a transaction (like placing an order or logging a sale) modifies the database. YOU MUST NOT execute `record_transaction` immediately when a user requests it.
-Instead, you must adhere to the following sequence:
-1. First, reply to the user summarizing their transaction (e.g., "You want to record a sale for...").
-2. At the end of your reply, explicitly ask: "Do you confirm you want me to record this transaction? (Yes/No)"
-3. Do NOT call the `record_transaction` tool during this turn.
-4. Only when the user responds with "Yes" in the SUBSEQUENT message, are you allowed to invoke the `record_transaction` tool.
-If the user says "No", acknowledge the cancellation and do not run the tool.
+4. NEVER use `query_database` for questions the REST tools can answer.
 """),
-            MessagesPlaceholder(variable_name="chat_history", optional=True),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad")
-        ])
+                MessagesPlaceholder(variable_name="chat_history", optional=True),
+                ("human", "{input}"),
+                MessagesPlaceholder(variable_name="agent_scratchpad")
+            ])
         
-        agent = create_tool_calling_agent(self.llm, self.tools, self.prompt)
+            agent = create_tool_calling_agent(self.llm, self.tools, self.prompt)
         
-        self.agent_executor = AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=5
-        )
+            self.agent_executor = AgentExecutor(
+                agent=agent,
+                tools=self.tools,
+                verbose=True,
+                handle_parsing_errors=True,
+                max_iterations=5
+            )
         
-        self.chat_history = []
+            self.chat_history = []
+
+        except Exception as e:
+            print(f"❌ Failed to initialize InventoryAgent: {str(e)}")
+            self.agent_executor = None
+            self.chat_history = []
+
     
     def chat(self, user_input: str) -> str:
+        
+        if self.agent_executor is None:
+            return "❌ System Error: Agent is not initialized. Please check your configuration and try again."
+        
         try:
             response = self.agent_executor.invoke({
                 "input": user_input,
@@ -386,3 +432,4 @@ if __name__ == "__main__":
         print("\n🤖 Agent processing...")
         response = agent.chat(user_input)
         print(f"\n✅ Final Response: {response}")
+        
